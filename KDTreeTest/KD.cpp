@@ -89,6 +89,11 @@ int main(int argc, char* argv[])
 	KDNode<int>* nearest = Tree.find_nearest(pTarget);
 	disKD = (float)sqrt(Tree.d_min);
 
+	//make out put one file
+	//first line is original point
+	//secdond line is nearest point
+	//third line is distance between points
+
 	for (int i = 0; i < SD; i++)
 	{
 		cout << nearest->x[i] << " ";
