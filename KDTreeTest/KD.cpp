@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
 	// Send the random number generator to get different results each time for each processor
-	srand(time(NULL)*rank);
+	srand((int)time(NULL)*rank);
 	GenerateRandomTree(POINTS_NUM);
 
 	cout << "KD Tree Created by process " << rank << endl;
@@ -54,8 +54,8 @@ int main(int argc, char* argv[])
 	float disKD;
 	bool loop = true;
 
-	while (loop)
-	{
+	while (loop) {
+
 		string filename;
 		cout << "Input the name of file with points(don't forget .txt): ";
 		getline(cin, filename);
