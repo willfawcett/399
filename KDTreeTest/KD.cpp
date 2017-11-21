@@ -76,34 +76,32 @@ int main(int argc, char* argv[])
 		}
 		else cout << "Error: Could not open file.\n";
 	}
-	
+
+	ofstream near_output("X_NN.txt");
+
 	cout << "Points from file: ";
 	for (int i = 0; i < SD; i++)
 	{
 		cout << pTarget[i] << " ";
+		near_output << pTarget[i] << " ";
 	}
 	cout << endl;
-
-	ofstream near_output("nearest.txt");
+	near_output << endl;
 
 	KDNode<int>* nearest = Tree.find_nearest(pTarget);
 	disKD = (float)sqrt(Tree.d_min);
 
-	//make out put one file
-	//first line is original point
-	//secdond line is nearest point
-	//third line is distance between points
-
+	cout << "Nearest points: ";
 	for (int i = 0; i < SD; i++)
 	{
 		cout << nearest->x[i] << " ";
-		near_output << nearest->x[i] << endl;
+		near_output << nearest->x[i] << " ";
 	}
 	
+	near_output << endl;
 	cout << endl;
-	ofstream dist_output("distance.txt");
 	cout << "Distance: " << disKD << endl;
-	dist_output << disKD;
+	near_output << disKD;
 	system("pause");
 	
 	MPI_Barrier(MPI_COMM_WORLD);

@@ -4,7 +4,7 @@
 
 #define MAX_DIM  20             //max space dimension
 #define KD_MAX_POINTS 2000000    //max KD tree points number  
-#define SD 5					//current space dimension
+#define SD 20					//current space dimension
 #define RMAX 1000
 #define POINTS_NUM 10000
 #define TEST_NUM 50
