@@ -1,5 +1,8 @@
-// KD.cpp : Defines the entry point for the console application.
-//
+//CSC 399 MPI Project Sequential KDD Tree
+//William Fawcet, Justin Mizelle
+//This program randomly generates a KDD tree, takes in a point from a txt file,
+//then computes the nearest points and distance and outputs this to a txt file.
+
 #include "stdafx.h"
 #include "KDTree.h"
 #include <iostream>
@@ -7,6 +10,7 @@
 #include <fstream>
 #include <stdlib.h>
 #include <string>
+#include <ctime>
 
 using namespace std;
 
@@ -31,7 +35,9 @@ void GenerateRandomTree(int nNodes)
 
 int main(int argc, char* argv[])
 {
-	
+	//start time measurment
+	clock_t begin = clock();
+
 	// Initialize MPI environment
 	MPI_Init(&argc, &argv);
 
@@ -56,13 +62,15 @@ int main(int argc, char* argv[])
 
 	while (loop) {
 
-		string filename;
+		//get the input file from the user, hard coding for speed testing
+		/*string filename;
 		cout << "Input the name of file with points(don't forget .txt): ";
-		getline(cin, filename);
-		ifstream points(filename);
+		getline(cin, filename);*/
+		ifstream points("blah.txt");
 
 		int point;
 
+		//put points in array
 		if (points.is_open())
 		{
 			int i = 0;
@@ -77,6 +85,7 @@ int main(int argc, char* argv[])
 		else cout << "Error: Could not open file.\n";
 	}
 
+	//output appropriate values to the console and file
 	ofstream near_output("X_NN.txt");
 
 	cout << "Points from file: ";
@@ -102,6 +111,10 @@ int main(int argc, char* argv[])
 	cout << endl;
 	cout << "Distance: " << disKD << endl;
 	near_output << disKD;
+
+	clock_t end = clock();
+	double ex_time = double(end - begin) / CLOCKS_PER_SEC;
+	cout << "Exicution time in seconds: " << ex_time << endl;
 	system("pause");
 	
 	MPI_Barrier(MPI_COMM_WORLD);
