@@ -1,7 +1,7 @@
 //CSC 399 MPI Project Sequential KDD Tree
 //William Fawcet, Justin Mizelle
-//This program randomly generates a KDD tree, takes in a point from a txt file,
-//then computes the nearest points and distance and outputs this to a txt file.
+//This program randomly generates a KDD tree, takes in points from a txt file,
+//then computes the nearest points and distance and outputs this to a txt file for each point.
 
 #include "stdafx.h"
 #include "KDTree.h"
@@ -64,6 +64,7 @@ int main(int argc, char* argv[])
 	while (loop) 
 	{
 
+		//input file is hard coded to keep I/O from affecting exicution time
 		ifstream points("blah.txt");
 
 		string point;
