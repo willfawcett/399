@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string>
 #include <ctime>
+#include <sstream>
 
 using namespace std;
 
@@ -60,57 +61,55 @@ int main(int argc, char* argv[])
 	float disKD;
 	bool loop = true;
 
-	while (loop) {
+	while (loop) 
+	{
 
-		//get the input file from the user, hard coding for speed testing
-		/*string filename;
-		cout << "Input the name of file with points(don't forget .txt): ";
-		getline(cin, filename);*/
 		ifstream points("blah.txt");
 
-		int point;
+		string point;
 
 		//put points in array
 		if (points.is_open())
 		{
 			int i = 0;
+			const char* fileName = "_NN";
+			const char* fileType = ".txt";
+			char name_buffer[512];
 			while (!points.eof())
 			{
-				points >> point;
-				pTarget[i++] = point;
+				getline(points, point);
+				cout << "Point " << i << ": " << point << endl;
+				stringstream stream(point);
+
+				for (int j = 0; j < SD; j++)
+					stream >> pTarget[j];
+				
+				sprintf(name_buffer, "%d%s%s", i, fileName, fileType);
+				ofstream near_output(name_buffer);
+				near_output << point << endl;
+
+				KDNode<int>* nearest = Tree.find_nearest(pTarget);
+				disKD = (float)sqrt(Tree.d_min);
+
+				cout << "Nearest point for point " << i << ": ";
+				for (int i = 0; i < SD; i++)
+				{
+					cout << nearest->x[i] << " ";
+					near_output << nearest->x[i] << " ";
+				}
+				cout << endl;
+				near_output << endl;
+
+				cout << "Distance: " << disKD << endl;
+				near_output << disKD;
+
+				i++;
 			}
 			points.close();
 			loop = false;
 		}
 		else cout << "Error: Could not open file.\n";
 	}
-
-	//output appropriate values to the console and file
-	ofstream near_output("X_NN.txt");
-
-	cout << "Points from file: ";
-	for (int i = 0; i < SD; i++)
-	{
-		cout << pTarget[i] << " ";
-		near_output << pTarget[i] << " ";
-	}
-	cout << endl;
-	near_output << endl;
-
-	KDNode<int>* nearest = Tree.find_nearest(pTarget);
-	disKD = (float)sqrt(Tree.d_min);
-
-	cout << "Nearest points: ";
-	for (int i = 0; i < SD; i++)
-	{
-		cout << nearest->x[i] << " ";
-		near_output << nearest->x[i] << " ";
-	}
-	
-	near_output << endl;
-	cout << endl;
-	cout << "Distance: " << disKD << endl;
-	near_output << disKD;
 
 	clock_t end = clock();
 	double ex_time = double(end - begin) / CLOCKS_PER_SEC;
