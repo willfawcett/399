@@ -77,30 +77,34 @@ int main(int argc, char* argv[])
 			char name_buffer[512];
 			while (!points.eof())
 			{
+				//get line as string then cast into int array
 				getline(points, point);
-				cout << "Point " << i << ": " << point << endl;
+				//cout << "Point " << i << ": " << point << endl;
 				stringstream stream(point);
-
 				for (int j = 0; j < SD; j++)
 					stream >> pTarget[j];
 				
+				//generate correct file name
 				sprintf(name_buffer, "%d%s%s", i, fileName, fileType);
 				ofstream near_output(name_buffer);
+				
+				//put point in first line of file
 				near_output << point << endl;
 
+				//compute nearest and make it the second line in file
 				KDNode<int>* nearest = Tree.find_nearest(pTarget);
 				disKD = (float)sqrt(Tree.d_min);
-
-				cout << "Nearest point for point " << i << ": ";
+				//cout << "Nearest point for point " << i << ": ";
 				for (int i = 0; i < SD; i++)
 				{
-					cout << nearest->x[i] << " ";
+					//cout << nearest->x[i] << " ";
 					near_output << nearest->x[i] << " ";
 				}
-				cout << endl;
+				//cout << endl;
 				near_output << endl;
 
-				cout << "Distance: " << disKD << endl;
+				//put discance in third line of file
+				//cout << "Distance: " << disKD << endl;
 				near_output << disKD;
 
 				i++;
@@ -111,6 +115,7 @@ int main(int argc, char* argv[])
 		else cout << "Error: Could not open file.\n";
 	}
 
+	//display exicution time
 	clock_t end = clock();
 	double ex_time = double(end - begin) / CLOCKS_PER_SEC;
 	cout << "Exicution time in seconds: " << ex_time << endl;
