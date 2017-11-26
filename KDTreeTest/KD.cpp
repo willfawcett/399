@@ -33,10 +33,18 @@ void GenerateRandomTree(int nNodes)
 	}
 }
 
-void parallel_execution(int *numProcesses, int *rank) {
-	
+void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
+	//init and finalize happen outside this function
 	//MPI 4 processer version goes here
 
+
+	cout << "numProcess:" << numProcesses << " rank:" << rank << " numPoints:" << numPoints << endl;
+
+	/*READ DATA FILES*/
+
+
+
+	
 	return;
 }
 
@@ -57,15 +65,29 @@ int main(int argc, char* argv[])
 	int rank;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+	int numPoints = 0;
+	//find out how many points we want to process (i.e. which data file(s) to use)
+	if (rank == 0) {
+		//check input
+		while (numPoints != 100 && numPoints != 1000 && numPoints != 10000 && numPoints != 100000) {
+			cout << "Enter number of points -- 100, 1000, 10000, or 100000: ";
+			cin >> numPoints;
+		}
+	}
+	if (numProcesses > 1) {
+		//make sure all processors have the same value in numPoints as 0
+		MPI_Bcast(&numPoints, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	}
 
+	// Parallel or Serial (or exit)
 	if (numProcesses == 4) {
-		parallel_execution(&numProcesses, &rank);
+		parallel_execution(numProcesses, rank, numPoints);
 	}
 	else if (numProcesses != 1) {
 		//We only support 1 or 4 processes
 		//Exit with error message
-		if(rank == 1)
-			fprintf(stderr, "Please try again, using either 1 or 4 processes.");
+		if(rank == 0)
+			fprintf(stderr, "Please try again using either 1 or 4 processes.");
 		MPI_Barrier(MPI_COMM_WORLD); //synch processes
 		MPI_Finalize(); //exit MPI gracefully
 		exit(1); //end app prematurely
@@ -143,8 +165,10 @@ int main(int argc, char* argv[])
 	//display exicution time
 	clock_t end = clock();
 	double ex_time = double(end - begin) / CLOCKS_PER_SEC;
-	cout << "Exicution time in seconds: " << ex_time << endl;
-	system("pause");
+	if (rank == 0) {
+		cout << "Exicution time in seconds: " << ex_time << endl;
+		//system("pause");
+	}
 	
 	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
