@@ -17,6 +17,19 @@ using namespace std;
 
 KDTree<int> Tree;
 
+#define RANK_ZERO 1u << 0;
+#define RANK_ONE 1u << 1;
+#define RANK_TWO 1u << 2;
+#define RANK_THREE 1u << 3;
+
+struct parallel_point
+{
+	int x[SD]; //point from input file
+	int y[SD]; //nearest point found in tree(s)
+	double distance; //distance between points
+	unsigned int visited; //bitmask
+} ;
+
 void generate_random_point(int* p, int sd)
 {
 	for(int k=0; k<sd; k++)
