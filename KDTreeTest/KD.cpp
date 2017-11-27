@@ -22,6 +22,8 @@ KDTree<int> Tree;
 #define RANK_TWO 1u << 2;
 #define RANK_THREE 1u << 3;
 
+#define POINTS_PER_MPI_MESSAGE = 10;
+
 struct parallel_point
 {
 	int x[SD]; //point from input file
@@ -50,6 +52,8 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	//init and finalize happen outside this function
 	//MPI 4 processer version goes here
 
+	//the array of points we'll be working with
+	parallel_point *points = new parallel_point[numPoints];
 
 	cout << "numProcess:" << numProcesses << " rank:" << rank << " numPoints:" << numPoints << endl;
 
@@ -58,8 +62,44 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	/*READ DATA FILES*/
 	string input_filename;
 	input_filename = "..\\input_files\\eval_" + to_string(numPoints) + "_" + to_string(rank) + ".txt";
+	ifstream input(input_filename);
 
-	cout << input_filename << endl;
+	//cout << input_filename << endl;
+
+	//load all points from input files for evaluation
+	int lineNumber = 0;
+	for (string line; getline(input, line); )
+	{
+		stringstream stream(line);
+		//BOUNDS CHECKING SHOULD GO HERE
+		parallel_point *point = &points[lineNumber];
+		int j = 0;
+		int n; while (stream >> n) { 
+			//cout << "Found integer: " << n; 
+			//BOUNDS CHECKING SHOULD GO HERE
+			point->x[j++] = n;
+		}
+		lineNumber++;
+		//cout << i++ << " : " << line << endl;
+		//...for each line in input...
+	}
+
+
+	for (int i = 0; i < numPoints; i++) {
+		//BOUNDS CHECKING SHOULD GO HERE
+		parallel_point *point = &points[i];
+		for (int j = 0; j < SD; j++) {
+			//BOUNDS CHECKING SHOULD GO HERE
+			cout << point->x[j] << " ";
+		}
+		cout << endl;
+	}
+
+
+
+
+
+
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	return;
