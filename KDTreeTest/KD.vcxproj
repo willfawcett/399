@@ -133,6 +133,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="KDTree.h" />
+    <ClInclude Include="parallel_version.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
