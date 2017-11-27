@@ -206,11 +206,26 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 		//exit(1);
 	}
 
+
+
+
+	//HOW IT WORKS
+	//1 ) calculate a set of local points (number of points being - POINTS_PER_MPI_MESSAGE)
+	//2 ) send that set of points to the next processor
+	//3 ) wait for the previous processor to send us points
+	//4 ) wait for confirmation that our points were received
+	//5 ) calculate the received points
+	//6.1 ) if these are not our points, calculate against our local KDTree and update the foreign points with nearest distances found
+	//6.2 ) if these are our points, update the local struct with the nearest distances found
+	//7.1 ) if they aren't our points, forward the set of points to next processor (basically 2, 3, 4 again)
+	//7.2 ) do any cleanup and then return to 1
+
+
 	//Loop Thru batches of POINTS_PER_MPI_MESSAGE
 	int numberOfBatches = numPoints / POINTS_PER_MPI_MESSAGE;
 	for (int batch = 0; batch < numberOfBatches; batch++) {
 
-		//loop through the points in the batch and calculate distance
+		//#1 loop through the points in the batch and calculate distance
 		for (int i = 0; i < points_per_message; i++) {
 			//BOUNDS CHECKING SHOULD GO HERE
 			int pointIndex = batch * POINTS_PER_MPI_MESSAGE + i;
@@ -228,16 +243,21 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 			}
 		}
 
+
 		//send the last POINTS_PER_MPI_MESSAGE points to the next processor
 		int startingPointIndex = batch * POINTS_PER_MPI_MESSAGE;
 		parallel_point* startingPoint = &points[startingPointIndex];
 		MPI_Request request;
 		MPI_Status sendStatus, recvStatus;
-		parallel_point incoming_points[POINTS_PER_MPI_MESSAGE];
+		parallel_point points_buffer_a[POINTS_PER_MPI_MESSAGE];
+		parallel_point points_buffer_b[POINTS_PER_MPI_MESSAGE]; //buffer used later on for forwarding 
+		bool processing_points_buffer_a = true;
+		//#2 USING ISEND so all procs can send data without deadlock
 		int result = MPI_Isend(startingPoint, points_per_message, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
-		int recvresult = MPI_Recv(&incoming_points, points_per_message, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
-		cout << "receive: " << recvresult << endl;
-		//MPI_Wait(&request, &sendStatus); //don't move on until we know our sent points were received
+		//#3 USING BLOCKING RECEIVE because we need to keep things synchronized
+		int recvresult = MPI_Recv(&points_buffer_a, points_per_message, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
+		//#4 We'll be altering the buffers, so we need to make sure communication is complted
+		MPI_Wait(&request, &sendStatus); //don't move on until we know our sent points were received
 
 		int points_origin = -1;
 		while (points_origin != rank) {
@@ -245,7 +265,14 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 			for (int i = 0; i < points_per_message; i++) {
 				//BOUNDS CHECKING SHOULD GO HERE
 				int pointIndex = batch * POINTS_PER_MPI_MESSAGE + i;
-				parallel_point* point = &incoming_points[pointIndex];
+
+				parallel_point* point;
+				if(processing_points_buffer_a)
+					point = &points_buffer_a[pointIndex];
+				else
+					point = &points_buffer_b[pointIndex];
+
+				//update points_origin with data from the first point -- they will all be of the same origin
 				if (i == 0) {
 					points_origin = point->origin; //we will exit the while loop after processing this set of points
 				}
@@ -259,7 +286,7 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 				if (disKD < point->distance && point->origin != rank) {
 					//update the point in the incoming points
 					point->distance = disKD;
-					cout << "Updating foreign point distance to " << point->distance;
+					cout << rank << " Updating foreign point distance to " << point->distance;
 
 					for (int j = 0; j < SD; j++) {
 						//BOUNDS CHECKING SHOULD GO HERE
@@ -272,6 +299,8 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 					int localPointIndex = point->index;
 					parallel_point *localPoint = &points[localPointIndex];
 					localPoint->distance = point->distance;
+
+					cout << rank << " Updating local point distance to " << point->distance;
 					for (int j = 0; j < SD; j++) {
 						//BOUNDS CHECKING SHOULD GO HERE
 						localPoint->y[j] = nearest->x[j]; //copy nearest point from kd tree to our struct array
@@ -279,14 +308,40 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 				}
 			}// end for each incomingpoints
 			if (points_origin != rank) {
+				// #7.1
 				//pass the points along to the next processor
-				//reusing a lot of variables created just before entering the while loop
+				//we can reuse the receiving buffer as the sending buffer, but we will need a new receiving buffer
+				
 
-				//COMMENTED OUT MPI BELOW BECAUSE OF AN ERROR
+				//ALTERNATE SEND/RECEIVE BUFFERS
+				if (processing_points_buffer_a) {
+					//reusing request/recv/status variables
+					//we're going to send buffer_a and load into buffer b
+					MPI_Isend(&points_buffer_a, POINTS_PER_MPI_MESSAGE, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
+					MPI_Recv(&points_buffer_b, SD, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
+					MPI_Wait(&request, &sendStatus); //don't move on until we know the points we sent were received
 
-				//MPI_Isend(&incoming_points, points_per_message, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
-				//MPI_Recv(&incoming_points, SD, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
-				//	MPI_Wait(&request, &status); //don't move on until we know the points we sent were received
+					//let the next iteration know to process buffer b
+					processing_points_buffer_a = false; //we've loaded the next set into points_buffer_b
+				}
+				else {
+					//reusing request/recv/status variables - 
+					//we're going to send buffer_b and load into buffer a
+					MPI_Isend(&points_buffer_b, POINTS_PER_MPI_MESSAGE, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
+					MPI_Recv(&points_buffer_a, SD, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
+					MPI_Wait(&request, &sendStatus); //don't move on until we know the points we sent were received
+
+					//let the next iteration know to process buffer a
+					processing_points_buffer_a = true; //we've loaded the next set into points_buffer_b
+				}
+			}
+			else {
+				//we're exiting the loop. need to do any cleanup?
+				//#7.2
+				cout << "We've received our own points" << endl;
+				MPI_Barrier(MPI_COMM_WORLD);
+				MPI_Finalize();
+				exit(0);
 			}
 		}
 
