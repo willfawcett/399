@@ -34,9 +34,6 @@ void GenerateRandomTree(int nNodes)
 	}
 }
 
-
-
-
 int main(int argc, char* argv[])
 {
 
@@ -50,6 +47,9 @@ int main(int argc, char* argv[])
 	//Get rank of process
 	int rank;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	int serial = 1;
+	cout << "Input 0 for concurent version and 1 for sequential: ";
+	cin >> serial;
 
 	int numPoints = 0;
 	//find out how many points we want to process (i.e. which data file(s) to use)
@@ -69,23 +69,25 @@ int main(int argc, char* argv[])
 	//start time measurment after getting user input
 	clock_t begin = clock();
 
-
-
 	// Parallel or Serial (or exit)
-	if (numProcesses == 4) {
+	if (serial == 0) {
 		parallel_execution(numProcesses, rank, numPoints);
 		MPI_Barrier(MPI_COMM_WORLD);
 	}
-	else if (numProcesses != 1) {
+	/*else if (numProcesses != 1) {
 		//We only support 1 or 4 processes
 		//Exit with error message
-		if(rank == 0)
+		if (rank == 0)
+		{
 			fprintf(stderr, "Please try again using either 1 or 4 processes.");
+		}
 		MPI_Barrier(MPI_COMM_WORLD); //synch processes
-		MPI_Finalize(); //exit MPI gracefully
 		exit(1); //end app prematurely
-	}
-	else {
+		MPI_Finalize();
+	}*/
+		
+	else
+	{
 		// SERIAL VERSION
 
 		// Send the random number generator to get different results each time for each processor
@@ -97,63 +99,58 @@ int main(int argc, char* argv[])
 		// generate random point to query tree
 		int pTarget[SD];
 		float disKD;
-		bool loop = true;
+		string infile_name;
 
-		while (loop)
+		if (numPoints == 100)
+			infile_name = "input_files//eval_100_SEQ.txt";
+		else if (numPoints == 1000)
+			infile_name = "input_files//eval_1000_SEQ.txt";
+		else if (numPoints == 10000)
+			infile_name = "input_files//eval_10000_SEQ.txt";
+		else if (numPoints == 100000)
+			infile_name = "input_files//eval_100000_SEQ.txt";
+
+		ifstream points(infile_name);
+		ofstream near_output("sequential_output.txt");
+		int count = 0;
+
+		if (points.is_open())
 		{
-
-			//input file is hard coded to keep I/O from affecting exicution time
-			ifstream points("blah.txt");
-
-			string point;
-
-			//put points in array
-			if (points.is_open())
+			while (!points.eof())
 			{
-				int i = 0;
-				const char* fileName = "_NN";
-				const char* fileType = ".txt";
-				char name_buffer[512];
-				while (!points.eof())
+				string point;
+				//get line as string then cast into int array
+				getline(points, point);
+				//cout << "Point " << i << ": " << point << endl;
+				stringstream stream(point);
+				for (int j = 0; j < SD; j++)
+					stream >> pTarget[j];
+
+				//put point in first line of file
+				near_output << point << endl;
+
+				//compute nearest and make it the second line in file
+				KDNode<int>* nearest = Tree.find_nearest(pTarget);
+				disKD = (float)sqrt(Tree.d_min);
+				//cout << "Nearest point for point " << i << ": ";
+				for (int i = 0; i < SD; i++)
 				{
-					//get line as string then cast into int array
-					getline(points, point);
-					//cout << "Point " << i << ": " << point << endl;
-					stringstream stream(point);
-					for (int j = 0; j < SD; j++)
-						stream >> pTarget[j];
-
-					//generate correct file name
-					sprintf(name_buffer, "%d%s%s", i, fileName, fileType);
-					ofstream near_output(name_buffer);
-
-					//put point in first line of file
-					near_output << point << endl;
-
-					//compute nearest and make it the second line in file
-					KDNode<int>* nearest = Tree.find_nearest(pTarget);
-					disKD = (float)sqrt(Tree.d_min);
-					//cout << "Nearest point for point " << i << ": ";
-					for (int i = 0; i < SD; i++)
-					{
-						//cout << nearest->x[i] << " ";
-						near_output << nearest->x[i] << " ";
-					}
-					//cout << endl;
-					near_output << endl;
-
-					//put discance in third line of file
-					//cout << "Distance: " << disKD << endl;
-					near_output << disKD;
-
-					i++;
+					//cout << nearest->x[i] << " ";
+					near_output << nearest->x[i] << " ";
 				}
-				points.close();
-				loop = false;
+				//cout << endl;
+				near_output << endl;
+
+				//put discance in third line of file
+				//cout << "Distance: " << disKD << endl;
+				near_output << disKD << endl;
+				count++;
+				}
+			cout << count << endl;
+			points.close();
 			}
 			else cout << "Error: Could not open file.\n";
-		} // end while loop
-	}// END if/elseif/else
+		} 
 
 	//display exicution time
 	MPI_Barrier(MPI_COMM_WORLD);
