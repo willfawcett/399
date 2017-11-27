@@ -11,7 +11,9 @@
 
 using namespace std;
 
-#define POINTS_PER_MPI_MESSAGE 10; //for best results, keep this evenly divisible by number of points being evaluated 
+#define TESTING true
+
+#define POINTS_PER_MPI_MESSAGE 10 //for best results, keep this evenly divisible by number of points being evaluated 
 
 /*
 struct parallel_point
@@ -35,7 +37,7 @@ typedef struct parallel_point_s
 
 KDTree<int> Tree_parallel;
 
-
+//duplicated and renamed to avoid conflict
 void generate_random_point_parallel(int* p, int sd)
 {
 	for (int k = 0; k<sd; k++)
@@ -52,6 +54,18 @@ void GenerateRandomTree_parallel(int nNodes)
 	}
 }
 
+void print_point(parallel_point &point, int &rank) {
+	cout << rank << ": " << " distance " << point.distance << " origin " << point.origin << " index " << point.index << endl;
+	cout << rank << " x :";
+	for (int i = 0; i < SD; i++)
+		cout << " " << point.x[i];
+	cout << endl;
+	cout << rank << " y :";
+	for (int i = 0; i < SD; i++)
+		cout << " " << point.y[i];
+	cout << endl;
+}
+
 void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	//init and finalize happen outside this function
 	//MPI 4 processer version goes here
@@ -64,7 +78,11 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	int next_rank = (rank + 1) % numProcesses;
 
 	//the previous processor.  This is who we will be asking for work from
-	int prev_rank = (rank - 1) % numProcesses;
+	int prev_rank = (rank + numProcesses - 1) % numProcesses;
+
+	cout << "rank: " << rank << " next_rank: " << next_rank << " prev_rank " << prev_rank << endl;
+	//system("pause");
+	//MPI_Barrier(MPI_COMM_WORLD);
 
 	int points_per_message = POINTS_PER_MPI_MESSAGE; //for those times when the constant isn't gladly accepted
 
@@ -109,7 +127,6 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	}
 
 
-	cout << "going to create datatype" << endl;
 
 	//Set up the MPI Datatype
 	MPI_Datatype parallel_point_mpi_t;
@@ -145,17 +162,33 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 
 
 	//BROADCAST A SINGLE POINT AS A TEST
-	parallel_point bcastPoint;
+	if (TESTING) {
+		parallel_point bcastPoint;
 
-	if (rank == 0) {
-		bcastPoint.distance = (double)100;
-		for (int i = 0; i < SD; i++)
-			bcastPoint.x[i] = i;
-		for (int i = 0; i < SD; i++)
-			bcastPoint.y[i] = i + SD;
-		bcastPoint.origin = 21;
-		bcastPoint.index = 22;
+		if (rank == 0) {
+			bcastPoint.distance = (double)100;
+			for (int i = 0; i < SD; i++)
+				bcastPoint.x[i] = i;
+			for (int i = 0; i < SD; i++)
+				bcastPoint.y[i] = i + SD;
+			bcastPoint.origin = 21;
+			bcastPoint.index = 22;
 
+
+			//DEBUG OUTPUT
+			cout << rank << ": " << " distance " << bcastPoint.distance << " origin " << bcastPoint.origin << " index " << bcastPoint.index << endl;
+			cout << rank << " x :";
+			for (int i = 0; i < SD; i++)
+				cout << " " << bcastPoint.x[i];
+			cout << endl;
+			cout << rank << " y :";
+			for (int i = 0; i < SD; i++)
+				cout << " " << bcastPoint.y[i];
+			cout << endl;
+
+		}
+
+		MPI_Bcast(&bcastPoint, 1, parallel_point_mpi_t, 0, MPI_COMM_WORLD);
 
 		//DEBUG OUTPUT
 		cout << rank << ": " << " distance " << bcastPoint.distance << " origin " << bcastPoint.origin << " index " << bcastPoint.index << endl;
@@ -168,24 +201,10 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 			cout << " " << bcastPoint.y[i];
 		cout << endl;
 
+		MPI_Barrier(MPI_COMM_WORLD);
+		//MPI_Finalize();
+		//exit(1);
 	}
-
-	MPI_Bcast(&bcastPoint, 1, parallel_point_mpi_t, 0, MPI_COMM_WORLD);
-
-	//DEBUG OUTPUT
-	cout << rank << ": " << " distance " << bcastPoint.distance << " origin " << bcastPoint.origin << " index " << bcastPoint.index << endl;
-	cout << rank << " x :";
-	for (int i = 0; i < SD; i++)
-		cout << " " << bcastPoint.x[i];
-	cout << endl;
-	cout << rank << " y :";
-	for (int i = 0; i < SD; i++)
-		cout << " " << bcastPoint.y[i];
-	cout << endl;
-
-	MPI_Barrier(MPI_COMM_WORLD);
-	MPI_Finalize();
-	exit(1);
 
 	//Loop Thru batches of POINTS_PER_MPI_MESSAGE
 	int numberOfBatches = numPoints / POINTS_PER_MPI_MESSAGE;
@@ -202,9 +221,10 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 			double disKD = (double)sqrt(Tree_parallel.d_min);
 			point->distance = disKD;
 
+			//copy nearest point from kd tree to our struct array
 			for (int j = 0; j < SD; j++) {
 				//BOUNDS CHECKING SHOULD GO HERE
-				point->y[j] = nearest->x[j]; //copy nearest point from kd tree to our struct array
+				point->y[j] = nearest->x[j]; 
 			}
 		}
 
@@ -213,26 +233,9 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 		parallel_point* startingPoint = &points[startingPointIndex];
 		MPI_Request request;
 		MPI_Status sendStatus, recvStatus;
-		parallel_point *incoming_points = new parallel_point[points_per_message];
-		int result = MPI_Isend(&startingPoint, points_per_message, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
-		/*
-		cout << result << endl;
-		if (result == MPI_SUCCESS)
-		cout << "No error; MPI routine completed successfully." << endl;
-		else if (result == MPI_ERR_COMM)
-		cout << "Invalid communicator.A common error is to use a null communicator in a call(not even allowed in MPI_Comm_rank).." << endl;
-		else if (result == MPI_ERR_COUNT)
-		cout << "Invalid count argument.Count arguments must be non - negative; a count of zero is often valid.." << endl;
-		else if (result == MPI_ERR_TYPE)
-		cout << "Invalid datatype argument.May be an uncommitted MPI_Datatype(see MPI_Type_commit).." << endl;
-		else if (result == MPI_ERR_TAG)
-		cout << "Invalid tag argument.Tags must be non - negative; tags in a receive(MPI_Recv, MPI_Irecv, MPI_Sendrecv, etc.) may also be MPI_ANY_TAG.The largest tag value is available through the the attribute MPI_TAG_UB.." << endl;
-		else if (result == MPI_ERR_RANK)
-		cout << "Invalid source or destination rank.Ranks must be between zero and the size of the communicator minus one; ranks in a receive(MPI_Recv, MPI_Irecv, MPI_Sendrecv, etc.) may also be MPI_ANY_SOURCE.." << endl;
-		else if (result == MPI_ERR_INTERN)
-		cout << "This error is returned when some part of the MPICH implementation is unable to acquire memory.." << endl;
-		*/
-		int recvresult = MPI_Recv(&incoming_points, SD, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
+		parallel_point incoming_points[POINTS_PER_MPI_MESSAGE];
+		int result = MPI_Isend(startingPoint, points_per_message, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
+		int recvresult = MPI_Recv(&incoming_points, points_per_message, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
 		cout << "receive: " << recvresult << endl;
 		//MPI_Wait(&request, &sendStatus); //don't move on until we know our sent points were received
 
