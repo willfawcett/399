@@ -40,19 +40,21 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 
 	cout << "numProcess:" << numProcesses << " rank:" << rank << " numPoints:" << numPoints << endl;
 
+	MPI_Barrier(MPI_COMM_WORLD);
+
 	/*READ DATA FILES*/
+	string input_filename;
+	input_filename = "..\\input_files\\eval_" + to_string(numPoints) + "_" + to_string(rank) + ".txt";
 
+	cout << input_filename << endl;
 
-
-	
+	MPI_Barrier(MPI_COMM_WORLD);
 	return;
 }
 
 
 int main(int argc, char* argv[])
 {
-	//start time measurment
-	clock_t begin = clock();
 
 	// Initialize MPI environment
 	MPI_Init(&argc, &argv);
@@ -79,9 +81,16 @@ int main(int argc, char* argv[])
 		MPI_Bcast(&numPoints, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	}
 
+
+	//start time measurment after getting user input
+	clock_t begin = clock();
+
+
+
 	// Parallel or Serial (or exit)
 	if (numProcesses == 4) {
 		parallel_execution(numProcesses, rank, numPoints);
+		MPI_Barrier(MPI_COMM_WORLD);
 	}
 	else if (numProcesses != 1) {
 		//We only support 1 or 4 processes
@@ -163,14 +172,13 @@ int main(int argc, char* argv[])
 	}// END if/elseif/else
 
 	//display exicution time
+	MPI_Barrier(MPI_COMM_WORLD);
 	clock_t end = clock();
 	double ex_time = double(end - begin) / CLOCKS_PER_SEC;
 	if (rank == 0) {
 		cout << "Exicution time in seconds: " << ex_time << endl;
 		//system("pause");
 	}
-	
-	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
 
 	return 0;
