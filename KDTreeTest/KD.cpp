@@ -22,7 +22,7 @@ KDTree<int> Tree;
 #define RANK_TWO 1u << 2;
 #define RANK_THREE 1u << 3;
 
-#define POINTS_PER_MPI_MESSAGE = 10;
+#define POINTS_PER_MPI_MESSAGE = 10; //for best results, keep this evenly divisible by number of points being evaluated 
 
 struct parallel_point
 {
@@ -56,8 +56,13 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	parallel_point *points = new parallel_point[numPoints];
 
 	cout << "numProcess:" << numProcesses << " rank:" << rank << " numPoints:" << numPoints << endl;
-
 	MPI_Barrier(MPI_COMM_WORLD);
+
+	/* GENERATE KD TREE */
+	srand((int)time(NULL)*rank);
+	GenerateRandomTree(POINTS_NUM);
+
+	cout << "KD Tree Created by process " << rank << endl;
 
 	/*READ DATA FILES*/
 	string input_filename;
@@ -85,19 +90,48 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	}
 
 
+
+
+
+	//Open Output File
+	string output_file = "output_eval_" + to_string(numPoints) + "_" + to_string(rank) + ".txt";
+	ofstream output(output_file);
+
+
+
+	//Loop Thru ALL Points (debugging at this point)
 	for (int i = 0; i < numPoints; i++) {
 		//BOUNDS CHECKING SHOULD GO HERE
-		parallel_point *point = &points[i];
+		parallel_point* point = &points[i];
+		//compute nearest and get distance
+		KDNode<int>* nearest = Tree.find_nearest(point->x);
+		double disKD = (double)sqrt(Tree.d_min);
+		point->distance = disKD;
+
 		for (int j = 0; j < SD; j++) {
 			//BOUNDS CHECKING SHOULD GO HERE
-			cout << point->x[j] << " ";
+			 point->y[j] = nearest->x[j]; //copy nearest point from kd tree to our struct array
 		}
-		cout << endl;
+		
+		//OUTPUT TO FILE
+		//Output X (point read in for evaluation)
+		for (int j = 0; j < SD; j++) {
+			//BOUNDS CHECKING SHOULD GO HERE
+			output << point->x[j] << " ";
+		}
+		output << endl;
+		//Output Y (point read in for evaluation)
+		for (int j = 0; j < SD; j++) {
+			//BOUNDS CHECKING SHOULD GO HERE
+			output << point->y[j] << " ";
+		}
+		output << endl;
+		//Output Distance
+		output << point->distance << endl;
 	}
 
-
-
-
+	//close output file
+	output.close();
 
 
 
