@@ -11,9 +11,9 @@
 
 using namespace std;
 
-#define TESTING true
+#define TESTING false
 
-#define POINTS_PER_MPI_MESSAGE 10 //for best results, keep this evenly divisible by number of points being evaluated 
+#define POINTS_PER_MPI_MESSAGE 100 //for best results, keep this evenly divisible by number of points being evaluated 
 
 /*
 struct parallel_point
@@ -54,15 +54,15 @@ void GenerateRandomTree_parallel(int nNodes)
 	}
 }
 
-void print_point(parallel_point &point, int &rank) {
-	cout << rank << ": " << " distance " << point.distance << " origin " << point.origin << " index " << point.index << endl;
+void print_point(parallel_point *point, int &rank) {
+	cout << rank << ": " << " distance " << point->distance << " origin " << point->origin << " index " << point->index << endl;
 	cout << rank << " x :";
 	for (int i = 0; i < SD; i++)
-		cout << " " << point.x[i];
+		cout << " " << point->x[i];
 	cout << endl;
 	cout << rank << " y :";
 	for (int i = 0; i < SD; i++)
-		cout << " " << point.y[i];
+		cout << " " << point->y[i];
 	cout << endl;
 }
 
@@ -80,32 +80,32 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	//the previous processor.  This is who we will be asking for work from
 	int prev_rank = (rank + numProcesses - 1) % numProcesses;
 
-	cout << "rank: " << rank << " next_rank: " << next_rank << " prev_rank " << prev_rank << endl;
+	if(TESTING) cout << "rank: " << rank << " next_rank: " << next_rank << " prev_rank " << prev_rank << endl;
 	//system("pause");
 	//MPI_Barrier(MPI_COMM_WORLD);
 
 	int points_per_message = POINTS_PER_MPI_MESSAGE; //for those times when the constant isn't gladly accepted
 
-	cout << "numProcess:" << numProcesses << " rank:" << rank << " numPoints:" << numPoints << endl;
+	if(TESTING) cout << "numProcess:" << numProcesses << " rank:" << rank << " numPoints:" << numPoints << endl;
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	/* GENERATE KD TREE */
 	srand((int)time(NULL)*rank);
 	GenerateRandomTree_parallel(POINTS_NUM);
 
-	cout << "KD Tree Created by process " << rank << endl;
+	if(TESTING) cout << "KD Tree Created by process " << rank << endl;
 
 	/*READ DATA FILES*/
 	string input_filename;
 	input_filename = "..\\input_files\\eval_" + to_string(numPoints) + "_" + to_string(rank) + ".txt";
 
-	cout << "loading file " << input_filename << endl;
+	if(TESTING) cout << "loading file " << input_filename << endl;
 	ifstream input(input_filename);
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	//cout << input_filename << endl;
 
-	cout << "loading points from file " << endl;
+	if(TESTING) cout << "loading points from file " << endl;
 	//load points array from files
 	int lineNumber = 0;
 	for (string line; getline(input, line); )
@@ -142,7 +142,7 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	MPI_Type_commit(&parallel_point_mpi_t);
 
 
-	cout << rank << "created datatype" << endl;
+	if(TESTING) cout << rank << "created datatype" << endl;
 	//move forward when all processes have created the datatype
 	MPI_Barrier(MPI_COMM_WORLD);
 
@@ -197,7 +197,7 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 
 
 	//HOW IT WORKS
-	//1 ) calculate a set of local points (number of points being - POINTS_PER_MPI_MESSAGE)
+	//1 ) calculate a set of local points (number of points being POINTS_PER_MPI_MESSAGE)
 	//2 ) send that set of points to the next processor
 	//3 ) wait for the previous processor to send us points
 	//4 ) wait for confirmation that our points were received
@@ -212,10 +212,14 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	int numberOfBatches = numPoints / POINTS_PER_MPI_MESSAGE;
 	for (int batch = 0; batch < numberOfBatches; batch++) {
 
+
+		if (TESTING) MPI_Barrier(MPI_COMM_WORLD);
+
 		//#1 loop through the points in the batch and calculate distance
 		for (int i = 0; i < points_per_message; i++) {
 			//BOUNDS CHECKING SHOULD GO HERE
 			int pointIndex = batch * POINTS_PER_MPI_MESSAGE + i;
+			if(TESTING) cout << rank << " is computing distance for its local point index " << pointIndex << endl;
 			parallel_point* point = &points[pointIndex];
 
 			//compute nearest and get distance
@@ -230,6 +234,8 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 			}
 		}
 
+		if(TESTING) MPI_Barrier(MPI_COMM_WORLD);
+
 
 		//send the last POINTS_PER_MPI_MESSAGE points to the next processor
 		int startingPointIndex = batch * POINTS_PER_MPI_MESSAGE;
@@ -239,19 +245,47 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 		parallel_point points_buffer_a[POINTS_PER_MPI_MESSAGE];
 		parallel_point points_buffer_b[POINTS_PER_MPI_MESSAGE]; //buffer used later on for forwarding 
 		bool processing_points_buffer_a = true;
+
+
+
+		if (TESTING) {
+
+			cout << "startingPointIndex: " << startingPointIndex << " for batch " << batch << endl;
+
+			print_point(startingPoint, rank);
+
+			MPI_Barrier(MPI_COMM_WORLD);
+			//MPI_Finalize();
+			//exit(0);
+			//}
+		}
+
+
 		//#2 USING ISEND so all procs can send data without deadlock
-		int result = MPI_Isend(startingPoint, points_per_message, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
+		MPI_Isend(startingPoint, POINTS_PER_MPI_MESSAGE, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
 		//#3 USING BLOCKING RECEIVE because we need to keep things synchronized
-		int recvresult = MPI_Recv(&points_buffer_a, points_per_message, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
+		MPI_Recv(&points_buffer_a, POINTS_PER_MPI_MESSAGE, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
 		//#4 We'll be altering the buffers, so we need to make sure communication is complted
 		MPI_Wait(&request, &sendStatus); //don't move on until we know our sent points were received
+
+		if (TESTING) {
+
+			cout << "first point received " << batch;
+
+			print_point(&points_buffer_a[0], rank);
+
+			MPI_Barrier(MPI_COMM_WORLD);
+			//MPI_Finalize();
+			//exit(0);
+			//}
+		}
 
 		int points_origin = -1;
 		while (points_origin != rank) {
 			//process the incoming points
-			for (int i = 0; i < points_per_message; i++) {
+			for (int i = 0; i < POINTS_PER_MPI_MESSAGE; i++) {
 				//BOUNDS CHECKING SHOULD GO HERE
-				int pointIndex = batch * POINTS_PER_MPI_MESSAGE + i;
+				int pointIndex = i;
 
 				parallel_point* point;
 				if(processing_points_buffer_a)
@@ -267,7 +301,7 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 					points_origin = point->origin; 
 				}
 
-				cout << rank << " received points from " << point->origin << endl;
+				if(TESTING) cout << rank << " received points from " << point->origin << endl;
 
 				if (point->origin != rank) {
 					//compute nearest and get distance
@@ -277,7 +311,7 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 					if (disKD < point->distance) {
 						//update the point in the incoming points
 						point->distance = disKD;
-						cout << rank << " Updating foreign point distance to " << point->distance << endl;
+						if(TESTING) cout << rank << " Updating foreign point distance to " << point->distance << endl;
 
 						for (int j = 0; j < SD; j++) {
 							//BOUNDS CHECKING SHOULD GO HERE
@@ -294,7 +328,7 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 							//copy foreign point distance back into local points
 							localPoint->distance = point->distance;
 
-							cout << rank << " Updating local point's nearest match and distance to " << point->distance << endl;;
+							if(TESTING) cout << rank << " Updating local point's nearest match and distance to " << point->distance << endl;;
 							for (int j = 0; j < SD; j++) {
 								//BOUNDS CHECKING SHOULD GO HERE
 								localPoint->y[j] = point->y[j]; //copy nearest point found remotely to our struct array
@@ -308,14 +342,14 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 				//we can reuse the receiving buffer as the sending buffer, but we will need a new receiving buffer
 				
 
-				cout << rank << " preparing to send points to next process" << endl;
+				if(TESTING) cout << rank << " preparing to send points to next process" << endl;
 
 				//ALTERNATE SEND/RECEIVE BUFFERS
 				if (processing_points_buffer_a) {
 					//reusing request/recv/status variables
 					//we're going to send buffer_a and load into buffer b
 					MPI_Isend(&points_buffer_a, POINTS_PER_MPI_MESSAGE, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
-					MPI_Recv(&points_buffer_b, SD, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
+					MPI_Recv(&points_buffer_b, POINTS_PER_MPI_MESSAGE, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
 					MPI_Wait(&request, &sendStatus); //don't move on until we know the points we sent were received
 
 					//let the next iteration know to process buffer b
@@ -325,7 +359,7 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 					//reusing request/recv/status variables - 
 					//we're going to send buffer_b and load into buffer a
 					MPI_Isend(&points_buffer_b, POINTS_PER_MPI_MESSAGE, parallel_point_mpi_t, next_rank, 0, MPI_COMM_WORLD, &request);
-					MPI_Recv(&points_buffer_a, SD, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
+					MPI_Recv(&points_buffer_a, POINTS_PER_MPI_MESSAGE, parallel_point_mpi_t, prev_rank, 0, MPI_COMM_WORLD, &recvStatus);
 					MPI_Wait(&request, &sendStatus); //don't move on until we know the points we sent were received
 
 					//let the next iteration know to process buffer a
@@ -335,62 +369,47 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 			else {
 				//we're exiting the loop. need to do any cleanup?
 				//#7.2
-				cout << rank << " We've received our own points" << endl;
-				cout << rank << " is finished with batch " << batch << endl;
-				MPI_Barrier(MPI_COMM_WORLD);
-				MPI_Finalize();
-				exit(0);
+				if (TESTING) {
+					cout << rank << " We've received our own points" << endl;
+					cout << rank << " is finished with batch " << batch << endl;
+				}
 			}
 		}
 
 	}
 
-	/*
-	//LOOPS THROUGH ALL POINTS
-	for (int i = 0; i < numPoints); i++) {
-	//BOUNDS CHECKING SHOULD GO HERE
-	parallel_point* point = &points[i];
-
-	//compute nearest and get distance
-	KDNode<int>* nearest = Tree_parallel.find_nearest(point->x);
-	double disKD = (double)sqrt(Tree_parallel.d_min);
-	point->distance = disKD;
-
-	for (int j = 0; j < SD; j++) {
-	//BOUNDS CHECKING SHOULD GO HERE
-	point->y[j] = nearest->x[j]; //copy nearest point from kd tree to our struct array
-	}
-	}
-	*/
-
-
 
 	//Open Output File
-	/*
 	string output_file = "output_eval_" + to_string(numPoints) + "_" + to_string(rank) + ".txt";
 	ofstream output(output_file);
-
-	//OUTPUT TO FILE
+	
+	//LOOPS THROUGH ALL POINTS
 	for (int i = 0; i < numPoints; i++) {
-	//Output X (point from input file)
-	for (int j = 0; j < SD; j++) {
-	//BOUNDS CHECKING SHOULD GO HERE
-	output << point->x[j] << " ";
-	}
-	output << endl;
-	//Output Y (nearest point from kdtree)
-	for (int j = 0; j < SD; j++) {
-	//BOUNDS CHECKING SHOULD GO HERE
-	output << point->y[j] << " ";
-	}
-	output << endl;
-	//Output Distance
-	output << point->distance << endl;
-	}
+		//BOUNDS CHECKING SHOULD GO HERE
+		parallel_point* point = &points[i];
 
+		//Output X (point from input file)
+		for (int j = 0; j < SD; j++) {
+			//BOUNDS CHECKING SHOULD GO HERE
+			output << point->x[j] << " ";
+		}
+		output << endl;
+		//Output Y (nearest point from all kdtrees)
+		for (int j = 0; j < SD; j++) {
+			//BOUNDS CHECKING SHOULD GO HERE
+			output << point->y[j] << " ";
+		}
+		output << endl;
+		//Output Distance
+		output << point->distance << endl;
+
+	}
+	
 	//close output file
 	output.close();
-	*/
+
+
+	
 
 
 
