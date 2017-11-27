@@ -128,24 +128,10 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 
 
 
-	//Set up the MPI Datatype
+	//Set up the MPI Datatype so we can send the parallel_point struct
 	MPI_Datatype parallel_point_mpi_t;
 	int array_of_blocklengths[5] = { SD, SD, 1, 1, 1 };
 	int array_of_displacements[5];
-	/*
-	parallel_point *point = &points[0];
-	MPI_Aint a_addr, b_addr, c_addr, d_addr, e_addr;
-	MPI_Get_address(&point->x[0], &a_addr);
-	array_of_displacements[0] = 0;
-	MPI_Get_address(&point->y[0], &b_addr);
-	array_of_displacements[1] = b_addr - a_addr;
-	MPI_Get_address(&point->distance, &c_addr);
-	array_of_displacements[2] = c_addr - b_addr;
-	MPI_Get_address(&point->origin, &d_addr);
-	array_of_displacements[3] = d_addr - c_addr;
-	MPI_Get_address(&point->index, &e_addr);
-	array_of_displacements[4] = e_addr - d_addr;
-	*/
 	array_of_displacements[0] = offsetof(parallel_point, x);
 	array_of_displacements[1] = offsetof(parallel_point, y);
 	array_of_displacements[2] = offsetof(parallel_point, distance);
@@ -156,7 +142,8 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	MPI_Type_commit(&parallel_point_mpi_t);
 
 
-	cout << "created datatype" << endl;
+	cout << rank << "created datatype" << endl;
+	//move forward when all processes have created the datatype
 	MPI_Barrier(MPI_COMM_WORLD);
 
 
@@ -274,37 +261,45 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 
 				//update points_origin with data from the first point -- they will all be of the same origin
 				if (i == 0) {
-					points_origin = point->origin; //we will exit the while loop after processing this set of points
+					//points are from our own process
+					//we will exit the while loop after processing this set of points
+					//we will also process them a little differently
+					points_origin = point->origin; 
 				}
 
-				cout << rank << " received points from " << point->origin << endl;;
+				cout << rank << " received points from " << point->origin << endl;
 
-				//compute nearest and get distance
-				KDNode<int>* nearest = Tree_parallel.find_nearest(point->x);
-				double disKD = (double)sqrt(Tree_parallel.d_min);
+				if (point->origin != rank) {
+					//compute nearest and get distance
+					KDNode<int>* nearest = Tree_parallel.find_nearest(point->x);
+					double disKD = (double)sqrt(Tree_parallel.d_min);
 
-				if (disKD < point->distance && point->origin != rank) {
-					//update the point in the incoming points
-					point->distance = disKD;
-					cout << rank << " Updating foreign point distance to " << point->distance;
+					if (disKD < point->distance) {
+						//update the point in the incoming points
+						point->distance = disKD;
+						cout << rank << " Updating foreign point distance to " << point->distance << endl;
 
-					for (int j = 0; j < SD; j++) {
-						//BOUNDS CHECKING SHOULD GO HERE
-						point->y[j] = nearest->x[j]; //copy nearest point from kd tree to our struct array
+						for (int j = 0; j < SD; j++) {
+							//BOUNDS CHECKING SHOULD GO HERE
+							point->y[j] = nearest->x[j]; //copy nearest point from kd tree to our struct array
+						}
 					}
 				}
-				else if (disKD < point->distance && point->origin == rank) {
-					//point has travelled to all 4 processors and a better distance was found elsewhere
-					//copy point data back into local points
-					int localPointIndex = point->index;
-					parallel_point *localPoint = &points[localPointIndex];
-					localPoint->distance = point->distance;
+				else {
+						//point has travelled to all 4 processors and a better distance may have been found elsewhere
+						int localPointIndex = point->index;
+						parallel_point *localPoint = &points[localPointIndex];
 
-					cout << rank << " Updating local point distance to " << point->distance;
-					for (int j = 0; j < SD; j++) {
-						//BOUNDS CHECKING SHOULD GO HERE
-						localPoint->y[j] = nearest->x[j]; //copy nearest point from kd tree to our struct array
-					}
+						if (point->distance < localPoint->distance) {
+							//copy foreign point distance back into local points
+							localPoint->distance = point->distance;
+
+							cout << rank << " Updating local point's nearest match and distance to " << point->distance << endl;;
+							for (int j = 0; j < SD; j++) {
+								//BOUNDS CHECKING SHOULD GO HERE
+								localPoint->y[j] = point->y[j]; //copy nearest point found remotely to our struct array
+							}
+						}
 				}
 			}// end for each incomingpoints
 			if (points_origin != rank) {
@@ -312,6 +307,8 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 				//pass the points along to the next processor
 				//we can reuse the receiving buffer as the sending buffer, but we will need a new receiving buffer
 				
+
+				cout << rank << " preparing to send points to next process" << endl;
 
 				//ALTERNATE SEND/RECEIVE BUFFERS
 				if (processing_points_buffer_a) {
@@ -338,7 +335,8 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 			else {
 				//we're exiting the loop. need to do any cleanup?
 				//#7.2
-				cout << "We've received our own points" << endl;
+				cout << rank << " We've received our own points" << endl;
+				cout << rank << " is finished with batch " << batch << endl;
 				MPI_Barrier(MPI_COMM_WORLD);
 				MPI_Finalize();
 				exit(0);
