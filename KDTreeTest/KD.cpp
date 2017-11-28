@@ -66,6 +66,9 @@ int main(int argc, char* argv[])
 	if (numProcesses > 1) {
 		//make sure all processors have the same value in numPoints as 0
 		MPI_Bcast(&numPoints, 1, MPI_INT, 0, MPI_COMM_WORLD);
+		
+		//make sure all processors also know they are to execute the serial implementation
+		MPI_Bcast(&serial, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	}
 
 	//start time measurment after getting user input
@@ -74,15 +77,15 @@ int main(int argc, char* argv[])
 	// Parallel or Serial (or exit)
 	if (serial == 0) {
 		if (numProcesses != 4) {
-		//We only support 1 or 4 processes
-		//Exit with error message
-		if (rank == 0)
-		{
-			fprintf(stderr, "Please try again using either 1 or 4 processes.\n");
-		}
-		MPI_Barrier(MPI_COMM_WORLD); //synch processes
-		system("pause");
-		exit(1); //end app prematurely
+			//We only support 1 or 4 processes
+			//Exit with error message
+			if (rank == 0)
+			{
+				fprintf(stderr, "Please try again using either 1 or 4 processes.\n");
+			}
+			MPI_Barrier(MPI_COMM_WORLD); //synch processes
+			system("pause");
+			exit(1); //end app prematurely
 		}
 		else
 		{
