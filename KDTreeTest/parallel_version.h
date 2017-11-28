@@ -99,10 +99,6 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	string input_filename;
 	input_filename = "..\\input_files\\eval_" + to_string(numPoints) + "_" + to_string(rank) + ".txt";
 
-	//Open Output File (We will write as we go to avoid having to loop thru points again)
-	string output_file = "output_eval_" + to_string(numPoints) + "_" + to_string(rank) + ".txt";
-	ofstream output(output_file);
-
 	if(TESTING) cout << "loading file " << input_filename << endl;
 	ifstream input(input_filename);
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -338,25 +334,6 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 								localPoint->y[j] = point->y[j]; //copy nearest point found remotely to our struct array
 							}
 						}
-
-						//WRITE OUT THE POINT
-
-
-						//Output X (point from input file)
-						for (int j = 0; j < SD; j++) {
-							//BOUNDS CHECKING SHOULD GO HERE
-							output << localPoint->x[j] << " ";
-						}
-						output << endl;
-						//Output Y (nearest point from all kdtrees)
-						for (int j = 0; j < SD; j++) {
-							//BOUNDS CHECKING SHOULD GO HERE
-							output << localPoint->y[j] << " ";
-						}
-						output << endl;
-						//Output Distance
-						output << localPoint->distance << endl;
-
 				}
 			}// end for each incoming_points
 			if (points_origin != rank) {
@@ -402,6 +379,31 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 	}
 
 
+	//Open Output File
+	string output_file = "output_eval_" + to_string(numPoints) + "_" + to_string(rank) + ".txt";
+	ofstream output(output_file);
+	
+	//LOOPS THROUGH ALL POINTS
+	for (int i = 0; i < numPoints; i++) {
+		//BOUNDS CHECKING SHOULD GO HERE
+		parallel_point* point = &points[i];
+
+		//Output X (point from input file)
+		for (int j = 0; j < SD; j++) {
+			//BOUNDS CHECKING SHOULD GO HERE
+			output << point->x[j] << " ";
+		}
+		output << endl;
+		//Output Y (nearest point from all kdtrees)
+		for (int j = 0; j < SD; j++) {
+			//BOUNDS CHECKING SHOULD GO HERE
+			output << point->y[j] << " ";
+		}
+		output << endl;
+		//Output Distance
+		output << point->distance << endl;
+
+	}
 	
 	//close output file
 	output.close();
