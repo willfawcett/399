@@ -335,7 +335,7 @@ void parallel_execution(int &numProcesses, int &rank, int &numPoints) {
 							}
 						}
 				}
-			}// end for each incomingpoints
+			}// end for each incoming_points
 			if (points_origin != rank) {
 				// #7.1
 				//pass the points along to the next processor
