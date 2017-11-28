@@ -120,7 +120,9 @@ int main(int argc, char* argv[])
 			infile_name = "input_files//eval_100000_SEQ.txt";
 
 		ifstream points(infile_name);
-		ofstream near_output("sequential_output.txt");
+		string outfile_name;
+		outfile_name = "sequential_output" + to_string(numPoints) + ".txt";
+		ofstream near_output(outfile_name);
 
 		if (points.is_open())
 		{
