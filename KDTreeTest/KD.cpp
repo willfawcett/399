@@ -1,4 +1,4 @@
-//CSC 399 MPI Project Sequential KDD Tree
+//CSC 399 MPI Project Sequential Tree
 //William Fawcet, Justin Mizelle
 //This program randomly generates a KDD tree, takes in points from a txt file,
 //then computes the nearest points and distance and outputs this to a txt file for each point.
@@ -65,26 +65,29 @@ int main(int argc, char* argv[])
 		MPI_Bcast(&numPoints, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	}
 
-
 	//start time measurment after getting user input
 	clock_t begin = clock();
 
 	// Parallel or Serial (or exit)
 	if (serial == 0) {
-		parallel_execution(numProcesses, rank, numPoints);
-		MPI_Barrier(MPI_COMM_WORLD);
-	}
-	/*else if (numProcesses != 1) {
+		if (numProcesses != 4) {
 		//We only support 1 or 4 processes
 		//Exit with error message
 		if (rank == 0)
 		{
-			fprintf(stderr, "Please try again using either 1 or 4 processes.");
+			fprintf(stderr, "Please try again using either 1 or 4 processes.\n");
 		}
 		MPI_Barrier(MPI_COMM_WORLD); //synch processes
+		system("pause");
 		exit(1); //end app prematurely
-		MPI_Finalize();
-	}*/
+		}
+		else
+		{
+			parallel_execution(numProcesses, rank, numPoints);
+			MPI_Barrier(MPI_COMM_WORLD);
+		}
+		
+	}
 		
 	else
 	{
@@ -112,7 +115,6 @@ int main(int argc, char* argv[])
 
 		ifstream points(infile_name);
 		ofstream near_output("sequential_output.txt");
-		int count = 0;
 
 		if (points.is_open())
 		{
@@ -144,9 +146,7 @@ int main(int argc, char* argv[])
 				//put discance in third line of file
 				//cout << "Distance: " << disKD << endl;
 				near_output << disKD << endl;
-				count++;
 				}
-			cout << count << endl;
 			points.close();
 			}
 			else cout << "Error: Could not open file.\n";
