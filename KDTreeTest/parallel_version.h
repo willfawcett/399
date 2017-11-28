@@ -13,7 +13,7 @@ using namespace std;
 
 #define TESTING false
 
-#define POINTS_PER_MPI_MESSAGE 100 //for best results, keep this evenly divisible by number of points being evaluated 
+#define POINTS_PER_MPI_MESSAGE 25 //for best results, keep this evenly divisible by number of points being evaluated 
 
 /*
 struct parallel_point
