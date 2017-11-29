@@ -1,3 +1,7 @@
+//William Fawcet, Justin Mizelle
+//This program randomly generates a KDD tree, takes in points from a txt file,
+//then computes the nearest points and distance and outputs this to a txt file for each point.
+
 #pragma once
 #include "stdafx.h"
 #include "KDTree.h"
